@@ -10,6 +10,8 @@ public class PaddingOracleAttacker {
 
         /* Before starting the Padding Oracle Attacker, make sure to split the above
          * ciphertext into AES blocks (16 bytes, 2 hex digits per byte => 32 hex digits.
+         * The server needs the IV and the previous blocks in order to decrypt so, as an
+         * example, when we are trying to decrypt the 3rd block we have to send blocks 1,2 & 3
          */
 
         Ciphertext ciphertext = new Ciphertext(challengeCiphertext);
@@ -17,22 +19,21 @@ public class PaddingOracleAttacker {
         int ciphertextSizeinBytes = ciphertext.toString().length() / 2;
         System.out.println("Ciphertext size in bytes: " + ciphertextSizeinBytes);
 
-        //we need an original ciphertext in order to decrypt, unless we make decryption later
+        //used to calculate the plaintext when a valid pad is found
         Ciphertext initialCiphertext = new Ciphertext(challengeCiphertext);
 
-        //targeting previous ciphertext block means we have to forge it 16 bytes earlier
+        //we have to start forging the byte that is in the same position but one block earlier
         int initialPosition = ciphertextSizeinBytes - AES_BLOCK_SIZE - 1;
 
         for (int position = initialPosition ; position > initialPosition - AES_BLOCK_SIZE; position--) {
-
-            //counting from the end of ciphertext in order to get proper pad
+            //starting from the end of the ciphertext in order to get proper pad
             int targetByte = (AES_BLOCK_SIZE - (position % AES_BLOCK_SIZE));
             String currentPad = Utils.numberToHexValue(targetByte);
             String nextPad = Utils.getNextHexValue(currentPad);
 
             System.out.println("Current pad: " + currentPad + " Next pad: " + nextPad);
 
-            for (int i = 0; i < 256; i++) { //HTTP tries
+            for (int i = 0; i < 256; i++) { //trying all possible 256 bytes
                 String tryValue = Utils.numberToHexValue(i);
 
                 ciphertext.substituteHexAtPosition(tryValue, position);
@@ -44,13 +45,18 @@ public class PaddingOracleAttacker {
                  */
                 if (responseCode == HttpURLConnection.HTTP_NOT_FOUND || (responseCode == HttpURLConnection.HTTP_OK) && (targetByte != 1)) {
                     System.out.println("\nValid pad for position " + position + " is " + tryValue);
-                    //to get the plaintext byte: current pad value XOR forged ciphertext byte XOR ciphertext byte
+                    //calculation of the plaintext byte when valid pad is found:
+                    //current pad value XOR forged ciphertext byte XOR ciphertext byte
                     String hexInPlaintext = Utils.xorHex(currentPad, tryValue);
                     hexInPlaintext = Utils.xorHex(hexInPlaintext,
                             initialCiphertext.getHexAtPosition(position));
+                    //inserting the plaintext byte in the begging of our plaintext
                     plaintext.insert(0, hexInPlaintext);
                     System.out.println("PLAINTEXT: " + plaintext.toString());
-                     //all previous bytes including current must be padded with currentPad xor nextPad
+                     /* All previous bytes including current must be xor-ed with currentPad xor nextPad
+                      * in order to produce the next valid pad upon decryption at the server
+                      * xxxxxx[01] -> xxxx[xx]02, then  xxxx[02]02 -> xx[xx]0303 etc
+                      */
                     String newForger = Utils.xorHex(currentPad, nextPad);
                     for (int j = position ; j <= initialPosition; j++) {
                         ciphertext.xorWithHexAtPosition(newForger, j);
