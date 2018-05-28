@@ -1,6 +1,8 @@
 public class Ciphertext {
-    // wrapper class for Ciphertext. A Ciphertext is an array of Strings.
-    // Each element is TWO characters long and represents ONE byte in hex.
+    /* Class for Ciphertext. A Ciphertext is an array of Strings. Each element
+     * of this array is 2 characters and represents 1 byte in hex. Example:
+     * {"4a","c0","ff", ...}
+     */
 
     private final String[] ciphertextAsHexArray; //half size than our ciphertext string
     private final static int BLOCK_SIZE = 16; //AES block size
@@ -14,6 +16,9 @@ public class Ciphertext {
     }
 
     private void parseCiphertext(String ciphertext) {
+      /* Takes a String as input and initializes the String array which represents
+      * our ciphertext (ciphertextAsHexArray). Example "4ac0ff" -> {"4a","c0","ff"}
+      */
         char[] chars = ciphertext.toCharArray();
         for (int i = 0; i < chars.length - 1; i += 2) {
             this.ciphertextAsHexArray[i / 2] = String.valueOf(chars[i]) + String.valueOf(chars[i + 1]);
